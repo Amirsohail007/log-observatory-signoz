@@ -134,9 +134,6 @@ services:
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka-1:29092,kafka-2:29093,kafka-3:29094"
       KAFKA_CLUSTERS_0_ZOOKEEPER: "zookeeper-kafka-1:2181"
       DYNAMIC_CONFIG_ENABLED: 'true'
-      # # AWS MSK Cluster Configuration
-      # KAFKA_CLUSTERS_1_NAME: "aws-msk-cluster"
-      # KAFKA_CLUSTERS_1_BOOTSTRAPSERVERS: "b-1.stagingkafka.e9kp7g.c8.kafka.us-west-2.amazonaws.com:9092,b-2.stagingkafka.e9kp7g.c8.kafka.us-west-2.amazonaws.com:9092"
     ports:
       - "9999:8080"
     depends_on:
