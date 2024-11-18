@@ -1,0 +1,165 @@
+version: '3'
+
+services:
+
+  zookeeper-kafka-1:
+    image: confluentinc/cp-zookeeper:latest
+    hostname: zookeeper-kafka-1
+    container_name: zookeeper-kafka-1
+    environment:
+      ZOOKEEPER_SERVER_ID: 1
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "22181:2181"
+    volumes:
+      - ${SIGNOZ_DATA_PATH}/zookeeper_kafka/:/var/lib/zookeeper
+
+  kafka-1:
+    image: confluentinc/cp-kafka:latest
+    hostname: kafka-1
+    container_name: kafka-1
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper-kafka-1:2181
+
+      KAFKA_LISTENERS: LISTENER_INTERNAL_DOCKER://kafka-1:29092,LISTENER_EXTERNAL://kafka-1:9092,LISTENER_OUTSIDE_HOST://0.0.0.0:29094
+      KAFKA_ADVERTISED_LISTENERS: LISTENER_INTERNAL_DOCKER://kafka-1:29092,LISTENER_EXTERNAL://localhost:9092,LISTENER_OUTSIDE_HOST://${HOST_IP}:29094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTENER_INTERNAL_DOCKER:PLAINTEXT,LISTENER_EXTERNAL:PLAINTEXT,LISTENER_OUTSIDE_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: LISTENER_INTERNAL_DOCKER
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_NUM_PARTITIONS: 50
+      KAFKA_LOG_RETENTION_HOURS: 168 # Adjust as needed
+      KAFKA_MESSAGE_MAX_BYTES: 10485760 # Allow larger messages if needed
+      KAFKA_REPLICATION_FACTOR: 2
+      KAFKA_LOG_DIRS: /var/lib/kafka/data  # Log directory
+      KAFKA_DATA_DIR: /var/lib/kafka/data  # Data directory
+      # CLUSTER_ID: U4PhqkuoQu-lX2fmPZEUyw
+    ports:
+      - "9092:9092"
+      - '29094:29094'
+    volumes:
+      - kafka1-data:/var/lib/kafka/data
+
+  kafka-2:
+    image: confluentinc/cp-kafka:latest
+    hostname: kafka-2
+    container_name: kafka-2
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper-kafka-1:2181
+
+      KAFKA_LISTENERS: LISTENER_INTERNAL_DOCKER://kafka-2:29093,LISTENER_EXTERNAL://kafka-2:9093,LISTENER_OUTSIDE_HOST://0.0.0.0:29095
+      KAFKA_ADVERTISED_LISTENERS: LISTENER_INTERNAL_DOCKER://kafka-2:29093,LISTENER_EXTERNAL://localhost:9093,LISTENER_OUTSIDE_HOST://${HOST_IP}:29095
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTENER_INTERNAL_DOCKER:PLAINTEXT,LISTENER_EXTERNAL:PLAINTEXT,LISTENER_OUTSIDE_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: LISTENER_INTERNAL_DOCKER
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_NUM_PARTITIONS: 50
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_MESSAGE_MAX_BYTES: 10485760
+      KAFKA_REPLICATION_FACTOR: 2
+      KAFKA_LOG_DIRS: /var/lib/kafka/data  # Log directory
+      KAFKA_DATA_DIR: /var/lib/kafka/data  # Data directory
+      # CLUSTER_ID: U4PhqkuoQu-lX2fmPZEUyw 
+    ports:
+      - "9093:9093"
+      - '29095:29095'
+    volumes:
+      - kafka2-data:/var/lib/kafka/data
+
+  kafka-3:
+    image: confluentinc/cp-kafka:latest
+    # user: "root"
+    hostname: kafka-3
+    container_name: kafka-3
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper-kafka-1:2181
+
+      KAFKA_LISTENERS: LISTENER_INTERNAL_DOCKER://kafka-3:29094,LISTENER_EXTERNAL://kafka-3:9094,LISTENER_OUTSIDE_HOST://0.0.0.0:29096
+      KAFKA_ADVERTISED_LISTENERS: LISTENER_INTERNAL_DOCKER://kafka-3:29094,LISTENER_EXTERNAL://localhost:9094,LISTENER_OUTSIDE_HOST://${HOST_IP}:29096
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTENER_INTERNAL_DOCKER:PLAINTEXT,LISTENER_EXTERNAL:PLAINTEXT,LISTENER_OUTSIDE_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: LISTENER_INTERNAL_DOCKER
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_NUM_PARTITIONS: 50
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_MESSAGE_MAX_BYTES: 10485760
+      KAFKA_REPLICATION_FACTOR: 2
+      KAFKA_LOG_DIRS: /var/lib/kafka/data  # Log directory
+      KAFKA_DATA_DIR: /var/lib/kafka/data  # Data directory
+      # CLUSTER_ID: U4PhqkuoQu-lX2fmPZEUyw 
+    ports:
+      - "9094:9094"
+      - '29096:29096'
+    volumes:
+      - kafka3-data:/var/lib/kafka/data
+
+  kafka-rest:
+    image: confluentinc/cp-kafka-rest:latest
+    container_name: kafka-rest
+    environment:
+      KAFKA_REST_HOST_NAME: kafka-rest
+      KAFKA_REST_LISTENERS: http://0.0.0.0:8082
+      # KAFKA_REST_PORT: 8082
+      KAFKA_REST_BOOTSTRAP_SERVERS: "kafka-1:29092,kafka-2:29093,kafka-3:29094"
+      KAFKA_REST_ZOOKEEPER: "zookeeper-1:2181"
+      # KAFKA_REST_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"  # If you have a Schema Registry service
+    ports:
+      - "8082:8082"
+    depends_on:
+      - kafka-1
+      - kafka-2
+      - kafka-3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://kafka-rest:8082"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    init: true
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    environment:
+      KAFKA_CLUSTERS_0_NAME: "local-cluster"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka-1:29092,kafka-2:29093,kafka-3:29094"
+      KAFKA_CLUSTERS_0_ZOOKEEPER: "zookeeper-kafka-1:2181"
+      DYNAMIC_CONFIG_ENABLED: 'true'
+      # # AWS MSK Cluster Configuration
+      # KAFKA_CLUSTERS_1_NAME: "aws-msk-cluster"
+      # KAFKA_CLUSTERS_1_BOOTSTRAPSERVERS: "b-1.stagingkafka.e9kp7g.c8.kafka.us-west-2.amazonaws.com:9092,b-2.stagingkafka.e9kp7g.c8.kafka.us-west-2.amazonaws.com:9092"
+    ports:
+      - "9999:8080"
+    depends_on:
+      - kafka-1
+      - kafka-2
+      - kafka-3
+
+volumes:
+  kafka1-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${SIGNOZ_DATA_PATH}/kafka1-data
+  kafka2-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${SIGNOZ_DATA_PATH}/kafka2-data
+  kafka3-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${SIGNOZ_DATA_PATH}/kafka3-data

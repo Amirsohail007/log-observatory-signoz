@@ -1,0 +1,4 @@
+include:
+  - docker-compose-kafka.yaml
+  - docker-compose-clickhouse.yaml
+  - docker-compose-otel-kafka-clickhouse.yaml
