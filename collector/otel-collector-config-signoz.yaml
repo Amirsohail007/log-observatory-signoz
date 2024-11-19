@@ -59,12 +59,12 @@ receivers:
 
 processors:
   batch:
-    # send_batch_size: 10000
-    # send_batch_max_size: 11000
+    send_batch_size: 100
+    send_batch_max_size: 110
     # timeout: 10s
-    send_batch_size: 100000
-    send_batch_max_size: 110000
-    timeout: 20s
+    # send_batch_size: 100000
+    # send_batch_max_size: 110000
+    timeout: 30s
   signozspanmetrics/cumulative:
     metrics_exporter: signozkafkaexporter/metrics
     metrics_flush_interval: 60s
@@ -153,9 +153,9 @@ exporters:
       retry:
         max: 15
     producer:
-      max_message_bytes: 10000000
+      max_message_bytes: 1000000
       required_acks: -1 # WaitForAll
-    timeout: 20s
+    timeout: 30s
     sending_queue:
       enabled: true
       num_consumers: 2
@@ -177,9 +177,9 @@ exporters:
       retry:
         max: 15
     producer:
-      max_message_bytes: 10000000
+      max_message_bytes: 1000000
       required_acks: -1 # WaitForAll
-    timeout: 20s
+    timeout: 30s
     sending_queue:
       enabled: true
       num_consumers: 2
@@ -201,9 +201,9 @@ exporters:
       retry:
         max: 15
     producer:
-      max_message_bytes: 10000000
+      max_message_bytes: 1000000
       required_acks: -1 # WaitForAll
-    timeout: 20s
+    timeout: 30s
     sending_queue:
       enabled: true
       num_consumers: 2
