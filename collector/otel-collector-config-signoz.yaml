@@ -59,12 +59,18 @@ receivers:
 
 processors:
   batch:
-    send_batch_size: 100
-    send_batch_max_size: 110
-    # timeout: 10s
+    send_batch_size: 3
+    send_batch_max_size: 10
+    timeout: 10s
     # send_batch_size: 100000
     # send_batch_max_size: 110000
-    timeout: 30s
+    # timeout: 30s
+
+  memory_limiter:
+    limit_mib: 800               # Limit memory to 800 MiB
+    spike_limit_mib: 200         # Allow memory spikes of up to 200 MiB
+    check_interval: 1s           # Check memory usage every second
+
   signozspanmetrics/cumulative:
     metrics_exporter: signozkafkaexporter/metrics
     metrics_flush_interval: 60s
@@ -143,7 +149,9 @@ extensions:
 
 exporters:
   signozkafkaexporter/traces:
-    topic: default_traces
+    # topic: default_traces
+    topic: "signoz-traces"
+    encoding: jaeger_proto
     brokers:
       - ${KAFKA_BROKER_1}
       - ${KAFKA_BROKER_2}
@@ -153,13 +161,14 @@ exporters:
       retry:
         max: 15
     producer:
-      max_message_bytes: 1000000
+      max_message_bytes: 45000000
       required_acks: -1 # WaitForAll
+      compression: lz4
     timeout: 30s
     sending_queue:
       enabled: true
-      num_consumers: 2
-      queue_size: 10
+      num_consumers: 10
+      queue_size: 10000
     retry_on_failure:
       enabled: true
       initial_interval: 10s
@@ -177,13 +186,14 @@ exporters:
       retry:
         max: 15
     producer:
-      max_message_bytes: 1000000
+      max_message_bytes: 45000000
       required_acks: -1 # WaitForAll
+      compression: lz4
     timeout: 30s
     sending_queue:
       enabled: true
-      num_consumers: 2
-      queue_size: 10
+      num_consumers: 10
+      queue_size: 10000
     retry_on_failure:
       enabled: true
       initial_interval: 10s
@@ -201,13 +211,14 @@ exporters:
       retry:
         max: 15
     producer:
-      max_message_bytes: 1000000
+      max_message_bytes: 45000000
       required_acks: -1 # WaitForAll
+      compression: lz4
     timeout: 30s
     sending_queue:
       enabled: true
-      num_consumers: 2
-      queue_size: 10
+      num_consumers: 10
+      queue_size: 10000
     retry_on_failure:
       enabled: true
       initial_interval: 10s

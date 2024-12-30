@@ -1,2 +1,2 @@
 # server_endpoint: ws://query-service:4320/v1/opamp
-server_endpoint: ws://172.21.0.1:4320/v1/opamp
+server_endpoint: ws://192.168.1.68:4320/v1/opamp

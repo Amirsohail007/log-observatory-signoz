@@ -1,6 +1,18 @@
 receivers:
+  hostmetrics:
+    collection_interval: 30s
+    root_path: /hostfs
+    scrapers:
+      cpu: {}
+      load: {}
+      memory: {}
+      disk: {}
+      filesystem: {}
+      network: {}
+
   signozkafkareceiver/traces:
     topic: default_traces
+    encoding: jaeger_proto
     brokers:
       - ${KAFKA_BROKER_1}
       - ${KAFKA_BROKER_2}
@@ -11,13 +23,20 @@ receivers:
       retry:
         max: 10
         backoff: 5s
+    # sarama_consumer_config:
+    #   fetch_min_bytes: 1
+    #   fetch_default_bytes: 64
+    #   fetch_max_bytes: 1000000
+    #   max_processing_time: 1s
+    #   messages_channel_size: 1024
+    #   consumer_group_session_timeout: 30s
     sarama_consumer_config:
-      fetch_min_bytes: 1
-      fetch_default_bytes: 64
-      fetch_max_bytes: 128
-      max_processing_time: 500ms
-      messages_channel_size: 1024
-      consumer_group_session_timeout: 30s
+      fetch_min_bytes: 524288   # 512KB - Fetch only when at least 512KB is available
+      fetch_default_bytes: 1048576  # 1MB - Default fetch size per request
+      fetch_max_bytes: 2097152  # 2MB - Cap the maximum fetch size to 2MB
+      max_processing_time: 5s  # Allow up to 2 seconds for processing messages
+      messages_channel_size: 4096  # Increase buffer size to handle larger batches of messages
+      consumer_group_session_timeout: 60s  # Extend session timeout for larger processing windows
 
   signozkafkareceiver/logs:
     topic: default_logs
@@ -49,27 +68,136 @@ receivers:
         max: 10
         backoff: 5s
 
+processors:
+  batch:
+    # send_batch_size: 10000
+    # send_batch_max_size: 11000
+    # timeout: 10s
+    send_batch_size: 500
+    send_batch_max_size: 2000
+    timeout: 30s
+
+  # memory_limiter:
+  #   limit_mib: 800               # Limit memory to 800 MiB
+  #   spike_limit_mib: 200         # Allow memory spikes of up to 200 MiB
+  #   check_interval: 1s           # Check memory usage every second
+
+  signozspanmetrics/cumulative:
+    metrics_exporter: signozkafkaexporter/metrics
+    metrics_flush_interval: 60s
+    latency_histogram_buckets: [100us, 1ms, 2ms, 6ms, 10ms, 50ms, 100ms, 250ms, 500ms, 1000ms, 1400ms, 2000ms, 5s, 10s, 20s, 40s, 60s ]
+    dimensions_cache_size: 100000
+    dimensions:
+      - name: service.namespace
+        default: default
+      - name: deployment.environment
+        default: default
+      # This is added to ensure the uniqueness of the timeseries
+      # Otherwise, identical timeseries produced by multiple replicas of
+      # collectors result in incorrect APM metrics
+      - name: signoz.collector.id
+      - name: service.version
+      - name: browser.platform
+      - name: browser.mobile
+      - name: k8s.cluster.name
+      - name: k8s.node.name
+      - name: k8s.namespace.name
+      - name: host.name
+      - name: host.type
+      - name: container.name
+  resourcedetection:
+    # Using OTEL_RESOURCE_ATTRIBUTES envvar, env detector adds custom labels.
+    detectors: [env, system] # include ec2 for AWS, gcp for GCP and azure for Azure.
+    timeout: 2s
+  signozspanmetrics/delta:
+    metrics_exporter: signozkafkaexporter/metrics
+    metrics_flush_interval: 60s
+    latency_histogram_buckets: [100us, 1ms, 2ms, 6ms, 10ms, 50ms, 100ms, 250ms, 500ms, 1000ms, 1400ms, 2000ms, 5s, 10s, 20s, 40s, 60s ]
+    dimensions_cache_size: 100000
+    aggregation_temporality: AGGREGATION_TEMPORALITY_DELTA
+    enable_exp_histogram: true
+    dimensions:
+      - name: service.namespace
+        default: default
+      - name: deployment.environment
+        default: default
+      # This is added to ensure the uniqueness of the timeseries
+      # Otherwise, identical timeseries produced by multiple replicas of
+      # collectors result in incorrect APM metrics
+      - name: signoz.collector.id
+      - name: service.version
+      - name: browser.platform
+      - name: browser.mobile
+      - name: k8s.cluster.name
+      - name: k8s.node.name
+      - name: k8s.namespace.name
+      - name: host.name
+      - name: host.type
+      - name: container.name
+
 exporters:
   clickhousetraces:
     datasource: tcp://${CLICKHOUSE_DB_HOST}:${CLICKHOUSE_DB_PORT}/signoz_traces
     docker_multi_node_cluster: ${DOCKER_MULTI_NODE_CLUSTER}
     low_cardinal_exception_grouping: ${LOW_CARDINAL_EXCEPTION_GROUPING}
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+      randomization_factor: 0.7
+      multiplier: 1.3
+    sending_queue:
+      enabled: true
+      queue_size: 5000
+      num_consumers: 10
+    timeout: 30s
+
+  clickhousetraces/2:
+    datasource: tcp://${CLICKHOUSE_DB_HOST}:${CLICKHOUSE_DB_PORT}/signoz_traces
+    timeout: 5s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+      randomization_factor: 0.7
+      multiplier: 1.3
+    sending_queue:
+      enabled: true
+      queue_size: 10000
+      num_consumers: 10
+
   clickhousemetricswrite:
     endpoint: tcp://${CLICKHOUSE_DB_HOST}:${CLICKHOUSE_DB_PORT}/signoz_metrics
     resource_to_telemetry_conversion:
       enabled: true
+
   clickhousemetricswrite/prometheus:
     endpoint: tcp://${CLICKHOUSE_DB_HOST}:${CLICKHOUSE_DB_PORT}/signoz_metrics
+
   clickhouselogsexporter:
     dsn: tcp://${CLICKHOUSE_DB_HOST}:${CLICKHOUSE_DB_PORT}/signoz_logs
     docker_multi_node_cluster: ${DOCKER_MULTI_NODE_CLUSTER}
     timeout: 10s
     use_new_schema: true
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+      randomization_factor: 0.7
+      multiplier: 1.3
+    sending_queue:
+      enabled: true
+      queue_size: 10000
+      num_consumers: 10
 
 service:
   pipelines:
     traces:
       receivers: [signozkafkareceiver/traces]
+      processors: [batch]
       exporters: [clickhousetraces]
     metrics:
       receivers: [signozkafkareceiver/metrics]
@@ -77,3 +205,7 @@ service:
     logs:
       receivers: [signozkafkareceiver/logs]
       exporters: [clickhouselogsexporter]
+    metrics/generic:
+      receivers: [hostmetrics]
+      processors: [resourcedetection, batch]
+      exporters: [clickhousemetricswrite]
